@@ -1,3 +1,4 @@
 Flask
 pymongo
 Flask-Pymongo
+gunicorn==20.1.0
