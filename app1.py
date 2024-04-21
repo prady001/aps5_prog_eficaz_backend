@@ -1,7 +1,9 @@
-from flask import Flask, request, jsonify
-from flask_pymongo import PyMongo
 from bson import ObjectId, json_util
+from flask import Flask, jsonify, request
+from flask_pymongo import PyMongo
 from datetime import datetime
+import json
+
 
 app = Flask(__name__)
 app.config["MONGO_URI"] = "mongodb+srv://gabrielprady1:lR6RItI2wEsXkTeY@cluster0.do8a1uo.mongodb.net/biblioteca_db"
@@ -9,85 +11,244 @@ mongo = PyMongo(app)
 
 @app.route('/usuarios', methods=['GET'])
 def get_all_users():
-    usuarios = list(mongo.db.usuarios_aps5.find({}, {'_id': 0}))
-    return jsonify(usuarios), 200
+    # Define um filtro vazio para recuperar todos os usuários
+    filtro = {}
+    # Recupera os dados dos usuários do banco de dados MongoDB usando o filtro definido
+    dados_usuarios = mongo.db.usuarios_aps5.find(filtro)
+    
+    # Convertendo os ObjectId para strings
+    usuarios = []
+    for user in dados_usuarios:
+        user['_id'] = str(user['_id'])
+        usuarios.append(user)
+
+    # Cria uma resposta JSON contendo os usuários encontrados
+    resp = {
+        "usuarios": usuarios,
+    }
+    # Retorna a resposta JSON e o código de status 200 (OK)
+    return json.dumps(resp), 200
+
 
 @app.route('/usuarios/<string:user_id>', methods=['GET'])
 def get_user_by_id(user_id):
-    user = mongo.db.usuarios_aps5.find_one({'_id': ObjectId(user_id)}, {'_id': 0})
-    if user:
-        return jsonify(user), 200
-    else:
+    # Convert the user_id string to ObjectId
+    try:
+        user_id = ObjectId(user_id)
+    except:
+        # If the user_id is not a valid ObjectId, return a 400 Bad Request response
+        return {'message': 'Invalid user ID'}, 400
+
+    # Define a filter to retrieve the user by ID
+    filtro = {'_id': user_id}
+
+    # Retrieve the user data from the database
+    user_data = mongo.db.usuarios_aps5.find_one(filtro)
+
+    # If no user with the given ID is found, return a 404 Not Found response
+    if not user_data:
         return {'message': 'User not found'}, 404
 
+    # Convert the ObjectId to a string
+    user_data['_id'] = str(user_data['_id'])
+
+    # Return the user data as JSON with a 200 OK response
+    return json.dumps(user_data), 200
+    
 @app.route('/usuarios', methods=['POST'])
 def add_user():
+    # Recupera os dados do novo usuário a partir do corpo da requisição
     novo_usuario = request.json
+    # Insere os dados do novo usuário no banco de dados MongoDB
     resultado = mongo.db.usuarios_aps5.insert_one(novo_usuario)
+    # Verifica se o novo usuário foi inserido com sucesso
     if resultado.inserted_id:
-        return {'message': 'User added successfully'}, 201
+        # Cria uma resposta JSON contendo a mensagem de sucesso
+        resp = {
+            "mensagem": "Usuário adicionado com sucesso.",
+        }
+        # Retorna a resposta JSON e o código de status 201 (Created)
+        return resp, 201
     else:
-        return {'message': 'Failed to add user'}, 400
+        # Cria uma resposta JSON contendo a mensagem de erro
+        resp = {
+            "erro": "Falha ao adicionar usuário.",
+        }
+        # Retorna a resposta JSON e o código de status 400 (Bad Request)
+        return resp, 400
+    
 
 @app.route('/usuarios/<string:user_id>', methods=['PUT'])
 def update_user(user_id):
-    filtro = {'_id': ObjectId(user_id)}
-    dados_atualizados = request.json
-    resultado = mongo.db.usuarios_aps5.update_one(filtro, {'$set': dados_atualizados})
-    if resultado.modified_count:
-        return {'message': 'User updated successfully'}, 200
-    else:
+    # Convert the user_id string to ObjectId
+    try:
+        user_id = ObjectId(user_id)
+    except:
+        # If the user_id is not a valid ObjectId, return a 400 Bad Request response
+        return {'message': 'Invalid user ID'}, 400
+
+    # Get the updated user data from the request body
+    updated_data = request.get_json()
+
+    # Validate if the request body contains data
+    if not updated_data:
+        return {'message': 'No data provided for update'}, 400
+
+    # Define a filter to find the user by ID
+    filtro = {'_id': user_id}
+
+    # Perform the update operation
+    update_result = mongo.db.usuarios_aps5.update_one(filtro, {'$set': updated_data})
+
+    # If no user is found with the given ID, return a 404 Not Found response
+    if update_result.matched_count == 0:
         return {'message': 'User not found'}, 404
+
+    # If the update operation is successful, return a success message with a 200 OK response
+    return {'message': 'User updated successfully'}, 200
+
+
 
 @app.route('/usuarios/<string:user_id>', methods=['DELETE'])
 def delete_user(user_id):
-    filtro = {'_id': ObjectId(user_id)}
-    resultado = mongo.db.usuarios_aps5.delete_one(filtro)
-    if resultado.deleted_count:
-        return {'message': 'User deleted successfully'}, 200
-    else:
+    # Convert the user_id string to ObjectId
+    try:
+        user_id = ObjectId(user_id)
+    except:
+        # If the user_id is not a valid ObjectId, return a 400 Bad Request response
+        return {'message': 'Invalid user ID'}, 400
+
+    # Define a filter to find the user by ID
+    filtro = {'_id': user_id}
+
+    # Perform the delete operation
+    delete_result = mongo.db.usuarios_aps5.delete_one(filtro)
+
+    # If no user is found with the given ID, return a 404 Not Found response
+    if delete_result.deleted_count == 0:
         return {'message': 'User not found'}, 404
 
+    # If the delete operation is successful, return a success message with a 200 OK response
+    return {'message': 'User deleted successfully'}, 200
+
+    
 @app.route('/bikes', methods=['GET'])
 def get_all_bikes():
-    bikes = list(mongo.db.bikes_aps5.find({}, {'_id': 0}))
-    return jsonify(bikes), 200
+    # Define um filtro vazio para recuperar todas as bikes
+    filtro = {}
+    # Recupera os dados dos usuários do banco de dados MongoDB usando o filtro definido
+    dados_bikes = mongo.db.bikes_aps5.find(filtro)
+
+    # Convertendo os ObjectId para strings
+    bikes = []
+    for bike in dados_bikes:
+        bike['_id'] = str(bike['_id'])
+        bikes.append(bike)
+
+    # Cria uma resposta JSON contendo as bikes encontradas
+    resp = {
+        "bikes": bikes,
+    }
+    # Retorna a resposta JSON e o código de status 200 (OK)
+    return json.dumps(resp), 200
 
 @app.route('/bikes/<string:bike_id>', methods=['GET'])
 def get_bike_by_id(bike_id):
-    bike = mongo.db.bikes_aps5.find_one({'_id': ObjectId(bike_id)}, {'_id': 0})
-    if bike:
-        return jsonify(bike), 200
-    else:
+    # Convert the bike_id string to ObjectId
+    try:
+        bike_id = ObjectId(bike_id)
+    except:
+        # If the bike_id is not a valid ObjectId, return a 400 Bad Request response
+        return {'message': 'Invalid bike ID'}, 400
+
+    # Define a filter to retrieve the bike by ID
+    filtro = {'_id': bike_id}
+
+    # Retrieve the bike data from the database
+    bike_data = mongo.db.bikes_aps5.find_one(filtro)
+
+    # If no bike with the given ID is found, return a 404 Not Found response
+    if not bike_data:
         return {'message': 'Bike not found'}, 404
+
+    # Convert the ObjectId to a string
+    bike_data['_id'] = str(bike_data['_id'])
+
+    # Return the bike data as JSON with a 200 OK response
+    return json.dumps(bike_data), 200
 
 @app.route('/bikes', methods=['POST'])
 def add_bike():
+    # Recupera os dados da nova bike a partir do corpo da requisição
     nova_bike = request.json
+    # Insere os dados da nova bike no banco de dados MongoDB
     resultado = mongo.db.bikes_aps5.insert_one(nova_bike)
+    # Verifica se a nova bike foi inserida com sucesso
     if resultado.inserted_id:
-        return {'message': 'Bike added successfully'}, 201
+        # Cria uma resposta JSON contendo a mensagem de sucesso
+        resp = {
+            "mensagem": "Bike adicionada com sucesso.",
+        }
+        # Retorna a resposta JSON e o código de status 201 (Created)
+        return resp, 201
     else:
-        return {'message': 'Failed to add bike'}, 400
-
+        # Cria uma resposta JSON contendo a mensagem de erro
+        resp = {
+            "erro": "Falha ao adicionar bike.",
+        }
+        # Retorna a resposta JSON e o código de status 400 (Bad Request)
+        return resp, 400
+    
 @app.route('/bikes/<string:bike_id>', methods=['PUT'])
 def update_bike(bike_id):
-    filtro = {'_id': ObjectId(bike_id)}
-    dados_atualizados = request.json
-    resultado = mongo.db.bikes_aps5.update_one(filtro, {'$set': dados_atualizados})
-    if resultado.modified_count:
-        return {'message': 'Bike updated successfully'}, 200
-    else:
+    # Convert the bike_id string to ObjectId
+    try:
+        bike_id = ObjectId(bike_id)
+    except:
+        # If the bike_id is not a valid ObjectId, return a 400 Bad Request response
+        return {'message': 'Invalid bike ID'}, 400
+
+    # Get the updated bike data from the request body
+    updated_data = request.get_json()
+
+    # Validate if the request body contains data
+    if not updated_data:
+        return {'message': 'No data provided for update'}, 400
+
+    # Define a filter to find the bike by ID
+    filtro = {'_id': bike_id}
+
+    # Perform the update operation
+    update_result = mongo.db.bikes_aps5.update_one(filtro, {'$set': updated_data})
+
+    # If no bike is found with the given ID, return a 404 Not Found response
+    if update_result.matched_count == 0:
         return {'message': 'Bike not found'}, 404
+
+    # If the update operation is successful, return a success message with a 200 OK response
+    return {'message': 'Bike updated successfully'}, 200
 
 @app.route('/bikes/<string:bike_id>', methods=['DELETE'])
 def delete_bike(bike_id):
-    filtro = {'_id': ObjectId(bike_id)}
-    resultado = mongo.db.bikes_aps5.delete_one(filtro)
-    if resultado.deleted_count:
-        return {'message': 'Bike deleted successfully'}, 200
-    else:
+    # Convert the bike_id string to ObjectId
+    try:
+        bike_id = ObjectId(bike_id)
+    except:
+        # If the bike_id is not a valid ObjectId, return a 400 Bad Request response
+        return {'message': 'Invalid bike ID'}, 400
+
+    # Define a filter to find the bike by ID
+    filtro = {'_id': bike_id}
+
+    # Perform the delete operation
+    delete_result = mongo.db.bikes_aps5.delete_one(filtro)
+
+    # If no bike is found with the given ID, return a 404 Not Found response
+    if delete_result.deleted_count == 0:
         return {'message': 'Bike not found'}, 404
+
+    # If the delete operation is successful, return a success message with a 200 OK response
+    return {'message': 'Bike deleted successfully'}, 200
 
 @app.route('/emprestimos', methods=['POST'])
 def registrar_emprestimo():
