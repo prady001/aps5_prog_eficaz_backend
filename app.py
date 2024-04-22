@@ -252,138 +252,69 @@ def delete_bike(bike_id):
 
 @app.route('/emprestimos', methods=['POST'])
 def registrar_emprestimo():
-    # Recupera os dados do empréstimo a partir do corpo da requisição
     dados_emprestimo = request.json
+    bike_id = dados_emprestimo.get('bike_id')
+    user_id = dados_emprestimo.get('user_id')
 
-    # Verifica se os dados obrigatórios foram fornecidos
-    if 'user_id' not in dados_emprestimo or 'bike_id' not in dados_emprestimo:
-        return {'message': 'Missing user_id or bike_id'}, 400
+    bike = mongo.db.bikes_aps5.find_one({'_id': ObjectId(bike_id)})
+    user = mongo.db.usuarios_aps5.find_one({'_id': ObjectId(user_id)})
 
-    # Verifica se a bike está disponível para empréstimo
-    bike = mongo.db.bikes_aps5.find_one({'_id': ObjectId(dados_emprestimo['bike_id'])})
     if not bike:
         return {'message': 'Bike not found'}, 404
+    elif not user:
+        return {'message': 'User not found'}, 404
     elif bike.get('emprestada'):
         return {'message': 'Bike already rented'}, 400
 
-    # Registra a data de empréstimo
     dados_emprestimo['data_emprestimo'] = datetime.now()
 
-    # Insere os dados do empréstimo no banco de dados MongoDB
+    mongo.db.bikes_aps5.update_one({'_id': ObjectId(bike_id)}, {'$set': {'emprestada': True}})
+
     resultado = mongo.db.emprestimos_aps5.insert_one(dados_emprestimo)
 
-    # Atualiza o status da bike para emprestada
-    mongo.db.bikes_aps5.update_one({'_id': ObjectId(dados_emprestimo['bike_id'])}, {'$set': {'emprestada': True}})
-
-    # Verifica se o empréstimo foi registrado com sucesso
     if resultado.inserted_id:
         return {'message': 'Loan registered successfully'}, 201
     else:
         return {'message': 'Failed to register loan'}, 400
 
-
-
 @app.route('/emprestimos/usuario/<string:user_id>', methods=['GET'])
 def emprestimos_por_usuario(user_id):
-    # Verifica se o usuário existe
-    if not mongo.db.usuarios_aps5.find_one({'_id': ObjectId(user_id)}):
-        return {'message': 'User not found'}, 404
-
-    # Define o filtro para encontrar os empréstimos do usuário
-    filtro = {'user_id': user_id}
-
-    # Recupera os empréstimos do usuário do banco de dados MongoDB
-    emprestimos = list(mongo.db.emprestimos_aps5.find(filtro))
-
-    # Convertendo os ObjectIds para strings
-    emprestimos_serializaveis = []
-    for emprestimo in emprestimos:
-        emprestimo['_id'] = str(emprestimo['_id'])
-        emprestimos_serializaveis.append(emprestimo)
-
-    # Serialize emprestimos using json_util
-    emprestimos_json = json_util.dumps(emprestimos_serializaveis)
-
-    return emprestimos_json, 200
-
-
+    emprestimos = list(mongo.db.emprestimos_aps5.find({'user_id': user_id}))
+    return json_util.dumps(emprestimos), 200
 
 @app.route('/emprestimos/bike/<string:bike_id>', methods=['GET'])
 def emprestimos_por_bike(bike_id):
-    # Verifica se a bike existe
-    if not mongo.db.bikes_aps5.find_one({'_id': ObjectId(bike_id)}):
-        return {'message': 'Bike not found'}, 404
-
-    # Define o filtro para encontrar os empréstimos da bike
-    filtro = {'bike_id': bike_id}
-
-    # Recupera os empréstimos da bike do banco de dados MongoDB
-    emprestimos = list(mongo.db.emprestimos_aps5.find(filtro))
-
-    # Convertendo os ObjectIds para strings
-    emprestimos_serializaveis = []
-    for emprestimo in emprestimos:
-        emprestimo['_id'] = str(emprestimo['_id'])
-        emprestimos_serializaveis.append(emprestimo)
-
-    # Serialize emprestimos using json_util
-    emprestimos_json = json_util.dumps(emprestimos_serializaveis)
-
-    return emprestimos_json, 200
-
+    emprestimos = list(mongo.db.emprestimos_aps5.find({'bike_id': bike_id}))
+    return json_util.dumps(emprestimos), 200
 
 @app.route('/emprestimos', methods=['GET'])
 def listar_emprestimos():
-    # Recupera todos os empréstimos do banco de dados MongoDB
     emprestimos = list(mongo.db.emprestimos_aps5.find())
-
-    # Convertendo os ObjectIds para strings
-    emprestimos_serializaveis = []
-    for emprestimo in emprestimos:
-        emprestimo['_id'] = str(emprestimo['_id'])
-        emprestimos_serializaveis.append(emprestimo)
-
-    # Serialize emprestimos using json_util
-    emprestimos_json = json_util.dumps(emprestimos_serializaveis)
-
-    return emprestimos_json, 200
-
-
+    return json_util.dumps(emprestimos), 200
 
 @app.route('/emprestimos/<string:emprestimo_id>', methods=['DELETE'])
 def deletar_emprestimo(emprestimo_id):
-    # Verifica se o empréstimo existe
     emprestimo = mongo.db.emprestimos_aps5.find_one({'_id': ObjectId(emprestimo_id)})
     if not emprestimo:
         return {'message': 'Loan not found'}, 404
 
-    # Atualiza o status da bike para disponível
     mongo.db.bikes_aps5.update_one({'_id': ObjectId(emprestimo['bike_id'])}, {'$set': {'emprestada': False}})
-
-    # Deleta o empréstimo do banco de dados MongoDB
     mongo.db.emprestimos_aps5.delete_one({'_id': ObjectId(emprestimo_id)})
 
     return {'message': 'Loan deleted successfully'}, 200
 
-
 @app.route('/emprestimos/<string:emprestimo_id>/devolucao', methods=['PUT'])
 def marcar_devolucao(emprestimo_id):
-    # Verifica se o empréstimo existe
     emprestimo = mongo.db.emprestimos_aps5.find_one({'_id': ObjectId(emprestimo_id)})
     if not emprestimo:
         return {'message': 'Loan not found'}, 404
 
-    # Registra a data de devolução
     emprestimo['data_devolucao'] = datetime.now()
 
-    # Atualiza o empréstimo com a data de devolução
-    mongo.db.emprestimos_aps5.update_one({'_id': ObjectId(emprestimo_id)}, {'$set': {'data_devolucao': emprestimo['data_devolucao']}})
-
-    # Atualiza o status da bike para disponível
     mongo.db.bikes_aps5.update_one({'_id': ObjectId(emprestimo['bike_id'])}, {'$set': {'emprestada': False}})
+    mongo.db.emprestimos_aps5.update_one({'_id': ObjectId(emprestimo_id)}, {'$set': {'data_devolucao': emprestimo['data_devolucao']}})
 
     return {'message': 'Loan marked as returned successfully'}, 200
 
 if __name__ == '__main__':
     app.run(debug=True)
-
